@@ -1,0 +1,208 @@
+{
+  "schema_version": "1.0",
+  "name": "sensor_in_the_loop_health_assistant",
+  "display_name": "Sensor-in-the-Loop Personalized Health Assistant",
+  "version": "1.0.0",
+  "description": "Reads real wearable/sensor health data for a user and constructs a structured context payload that lets an LLM generate personalised, data-grounded health advice. Covers daily status, sleep, exercise, stress, recovery, travel, and work readiness.",
+  "language": "zh-CN",
+  "tags": ["health", "wellness", "sleep", "exercise", "stress", "personalization", "sensor", "wearable"],
+  "entry_module": "scripts.prototype_cli",
+  "entry_function": "main",
+
+  "trigger": {
+    "description": "Activate this skill when the user asks about their health, body state, sleep, exercise, stress, fatigue, recovery, travel readiness, or work/meeting readiness.",
+    "keywords": [
+      "身体", "健康", "状态", "睡眠", "作息", "运动", "跑步", "健身",
+      "压力", "疲劳", "累", "恢复", "焦虑", "放松",
+      "会议", "开会", "演讲", "加班", "工作效率",
+      "出行", "旅行", "通勤", "时差", "出差",
+      "步数", "心率", "熬夜", "补觉"
+    ],
+    "example_queries": [
+      "我今天身体怎么样？",
+      "我昨晚睡得怎么样？",
+      "我今天适合运动吗？",
+      "我明天要开会，今天该怎么调整？",
+      "我最近是不是压力太大了？",
+      "我今天适合出门吗？",
+      "我最近恢复得怎么样？",
+      "我现在适合加班吗？"
+    ]
+  },
+
+  "functions": [
+    {
+      "name": "JianDataParser.build_daily_summary",
+      "module": "scripts.data_parser",
+      "description": "Load the health CSV file and return a structured snapshot of a single user's health data for one day. Covers activity, sleep, stress/HRV, and location-context dimensions.",
+      "when_to_call": "Call first, before any other function, to obtain today's raw health snapshot for the user.",
+      "parameters": {
+        "user_id": {
+          "type": "string",
+          "description": "The user identifier matching the 'id' column in the CSV file."
+        },
+        "date": {
+          "type": "string",
+          "format": "date",
+          "description": "Target date in ISO-8601 format, e.g. '2021-07-31'."
+        }
+      },
+      "returns": {
+        "type": "object",
+        "description": "Nested dict with keys: user_id, date, profile, activity, sleep, stress, context."
+      }
+    },
+    {
+      "name": "JianDataParser.build_7day_summary",
+      "module": "scripts.data_parser",
+      "description": "Compute rolling 7-day statistics (mean, std, trend label) for key health metrics ending on the given date.",
+      "when_to_call": "Call immediately after build_daily_summary to enrich the payload with trend context.",
+      "parameters": {
+        "user_id": {
+          "type": "string",
+          "description": "The user identifier matching the 'id' column in the CSV file."
+        },
+        "date": {
+          "type": "string",
+          "format": "date",
+          "description": "End date of the 7-day window in ISO-8601 format."
+        }
+      },
+      "returns": {
+        "type": "object",
+        "description": "Dict with keys: user_id, date, window_days, metrics. Each metric entry contains latest, 7d_mean, 7d_std, trend_label."
+      }
+    },
+    {
+      "name": "classify_question",
+      "module": "scripts.prompt_builder",
+      "description": "Classify the user's free-text question into one of six health topic categories using keyword matching.",
+      "when_to_call": "Call after build_daily_summary returns, passing the user's original question text.",
+      "parameters": {
+        "user_query": {
+          "type": "string",
+          "description": "The raw question text entered by the user."
+        }
+      },
+      "returns": {
+        "type": "string",
+        "enum": ["work_meeting", "exercise", "sleep", "travel", "stress_recovery", "general_health"],
+        "description": "Category string that drives both query rewriting and the answer_focus hint."
+      }
+    },
+    {
+      "name": "rewrite_query_locally",
+      "module": "scripts.query_rewriter",
+      "description": "Rewrite the user's question into a context-enriched version grounded in their health state, using rule-based templates (no external LLM required).",
+      "when_to_call": "Call after classify_question, passing the merged summary dict, the original query, and the question_type.",
+      "parameters": {
+        "summary": {
+          "type": "object",
+          "description": "Merged summary dict containing user_id, date, daily snapshot, and metrics."
+        },
+        "user_query": {
+          "type": "string",
+          "description": "The original question text entered by the user."
+        },
+        "question_type": {
+          "type": "string",
+          "enum": ["work_meeting", "exercise", "sleep", "travel", "stress_recovery", "general_health"],
+          "description": "Category string returned by classify_question."
+        }
+      },
+      "returns": {
+        "type": "string",
+        "description": "A Chinese-language rewritten question that embeds relevant health context."
+      }
+    },
+    {
+      "name": "build_payload",
+      "module": "scripts.openclaw_payload",
+      "description": "Assemble the final structured context payload that OpenClaw passes to its LLM to generate a personalised health response.",
+      "when_to_call": "Call last, after rewrite_query_locally, to produce the output that OpenClaw consumes.",
+      "parameters": {
+        "summary": {
+          "type": "object",
+          "description": "Merged summary dict containing user_id, date, daily snapshot, and metrics."
+        },
+        "original_query": {
+          "type": "string",
+          "description": "The raw question text entered by the user."
+        },
+        "rewritten_query": {
+          "type": "string",
+          "description": "The context-enriched rewrite from rewrite_query_locally."
+        },
+        "question_type": {
+          "type": "string",
+          "enum": ["work_meeting", "exercise", "sleep", "travel", "stress_recovery", "general_health"],
+          "description": "Category string returned by classify_question."
+        }
+      },
+      "returns": {
+        "type": "object",
+        "description": "JSON-serialisable dict with fields: question_type, original_query, rewritten_query, user_state, answer_focus, output_style, do_not_show_chain_of_thought."
+      }
+    }
+  ],
+
+  "pipeline": {
+    "description": "Ordered sequence of function calls for a single skill invocation.",
+    "steps": [
+      {
+        "step": 1,
+        "function": "JianDataParser.build_daily_summary",
+        "output_key": "daily"
+      },
+      {
+        "step": 2,
+        "function": "JianDataParser.build_7day_summary",
+        "output_key": "summary7"
+      },
+      {
+        "step": 3,
+        "function": "classify_question",
+        "output_key": "question_type"
+      },
+      {
+        "step": 4,
+        "function": "rewrite_query_locally",
+        "output_key": "rewritten_query"
+      },
+      {
+        "step": 5,
+        "function": "build_payload",
+        "output_key": "openclaw_payload"
+      }
+    ]
+  },
+
+  "data_requirements": {
+    "primary_file": "data/jian.csv",
+    "env_override": "DATA_PATH",
+    "required_columns": [
+      "id", "date",
+      "calories", "distance", "steps",
+      "lightly_active_minutes", "moderately_active_minutes", "very_active_minutes", "sedentary_minutes",
+      "sleep_duration", "minutesToFallAsleep", "minutesAsleep", "minutesAwake",
+      "minutesAfterWakeup", "sleep_efficiency",
+      "rmssd", "resting_hr", "stress_score"
+    ],
+    "optional_columns": [
+      "nremhr", "sleep_deep_ratio", "sleep_wake_ratio", "sleep_light_ratio", "sleep_rem_ratio",
+      "sleep_points_percentage", "responsiveness_points_percentage",
+      "age", "gender", "bmi", "step_goal", "step_goal_label",
+      "HOME", "HOME_OFFICE", "WORK/SCHOOL", "OUTDOORS", "TRANSIT", "OTHER"
+    ]
+  },
+
+  "dependencies": {
+    "python": ">=3.9",
+    "packages": ["pandas", "numpy"]
+  },
+
+  "safety": {
+    "not_a_medical_device": true,
+    "disclaimer": "This skill provides general wellness suggestions based on wearable data. It does not diagnose medical conditions, replace professional medical advice, or handle emergency health situations."
+  }
+}

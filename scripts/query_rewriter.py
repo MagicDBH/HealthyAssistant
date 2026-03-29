@@ -4,9 +4,46 @@ from typing import Dict, Any
 
 
 def rewrite_query_locally(summary: Dict[str, Any], user_query: str, question_type: str) -> str:
-    """
-    本地重写：给 OpenClaw 前置一个更适合推理的问句。
-    不依赖外部 LLM。
+    """Rewrite a user's health question using rule-based templates grounded in their current state.
+
+    This function is the **local, zero-latency alternative** to sending the
+    query to an external LLM rewriter.  It produces a context-enriched question
+    that primes OpenClaw's language model with the most relevant health
+    dimensions *before* a single token is generated.
+
+    Each template:
+
+    * Acknowledges the specific health domain implied by *question_type*.
+    * Instructs OpenClaw to evaluate the user's suitability / readiness.
+    * Asks for concrete, actionable adjustments if needed.
+    * Appends the original question so the user's intent is preserved verbatim.
+
+    Args:
+        summary: The merged summary dict (``user_id``, ``date``, ``daily``,
+            ``metrics``) produced by the skill pipeline.  Currently unused by
+            the rule-based templates but accepted for API parity with any
+            future LLM-based rewriter.
+        user_query: The original question text entered by the user.
+        question_type: One of the six category strings returned by
+            :func:`~scripts.prompt_builder.classify_question`:
+            ``"work_meeting"``, ``"exercise"``, ``"sleep"``,
+            ``"travel"``, ``"stress_recovery"``, or ``"general_health"``.
+
+    Returns:
+        A rewritten question string in Chinese that embeds the relevant health
+        context and is ready to be passed to OpenClaw as the ``rewritten_query``
+        field of the context payload.
+
+    Trigger condition:
+        Called once per skill invocation immediately after
+        :func:`~scripts.prompt_builder.classify_question` returns, and before
+        :func:`~scripts.openclaw_payload.build_payload` assembles the final
+        payload.
+
+    Example::
+
+        rewrite_query_locally(summary, "我明天要开会，怎么调整？", "work_meeting")
+        # → "结合我当前的睡眠、压力和恢复状态，明天我适合参加会议或处理高压工作吗？..."
     """
     if question_type == "work_meeting":
         return f"结合我当前的睡眠、压力和恢复状态，明天我适合参加会议或处理高压工作吗？如果不适合，应该如何调整？原问题：{user_query}"

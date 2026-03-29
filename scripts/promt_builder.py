@@ -4,6 +4,37 @@ from typing import Dict, Any
 
 
 def classify_question(user_query: str) -> str:
+    """Classify a user's free-text question into one of six pre-defined categories.
+
+    The classification is keyword-based and operates on the lowercased query.
+    It is intentionally simple and fast – no LLM call is required.
+
+    Categories (in priority order):
+
+    * ``"work_meeting"``   – questions about meetings, work performance, exams,
+      presentations, overtime, or high-pressure tasks.
+    * ``"exercise"``       – questions about workouts, running, steps, weight
+      loss, or muscle gain.
+    * ``"sleep"``          – questions about sleep quality, bedtime habits,
+      all-nighters, or catching up on sleep.
+    * ``"travel"``         – questions about commuting, flights, trains, business
+      trips, or jet lag.
+    * ``"stress_recovery"``– questions about stress levels, fatigue, anxiety,
+      relaxation, or recovery.
+    * ``"general_health"`` – fallback for any other health-related question.
+
+    Args:
+        user_query: The raw question text entered by the user.
+
+    Returns:
+        One of the six category strings listed above.
+
+    Trigger condition:
+        Called once per skill invocation immediately after
+        :meth:`~scripts.data_parser.JianDataParser.build_daily_summary` returns.
+        The returned category drives both query rewriting and the ``answer_focus``
+        hint injected into the OpenClaw payload.
+    """
     q = user_query.lower()
 
     if any(k in q for k in ["会议", "开会", "演讲", "工作", "考试", "项目", "加班", "任务", "汇报"]):
@@ -20,6 +51,27 @@ def classify_question(user_query: str) -> str:
 
 
 def build_rewrite_prompt(summary: Dict[str, Any], user_query: str) -> str:
+    """Build a structured Chinese-language prompt that instructs an LLM to rewrite the user's query.
+
+    The prompt embeds a compact metric-trend snapshot so the LLM can ground
+    the rewritten question in the user's actual health state.
+
+    Args:
+        summary: The merged summary dict produced by the skill pipeline,
+            expected to contain a ``"metrics"`` key whose value is a dict of
+            ``{metric_name: {"trend_label": str, ...}}``.
+        user_query: The original question text entered by the user.
+
+    Returns:
+        A multi-line string ready to be sent as the system or user message to
+        the rewriting LLM.
+
+    Trigger condition:
+        Called only when an external LLM-powered rewrite is desired (i.e. when
+        the caller opts *not* to use the local rule-based rewriter in
+        :mod:`scripts.query_rewriter`).  In the default CLI pipeline
+        :func:`~scripts.query_rewriter.rewrite_query_locally` is used instead.
+    """
     metrics = summary.get("metrics", {})
     compact = []
     for k, v in metrics.items():
@@ -43,7 +95,47 @@ def build_rewrite_prompt(summary: Dict[str, Any], user_query: str) -> str:
 """.strip()
 
 
-def build_openclaw_context(summary: Dict[str, Any], user_query: str, rewritten_query: str, question_type: str) -> Dict[str, Any]:
+def build_openclaw_context(
+    summary: Dict[str, Any],
+    user_query: str,
+    rewritten_query: str,
+    question_type: str,
+) -> Dict[str, Any]:
+    """Assemble the structured context payload that OpenClaw uses to generate a personalised reply.
+
+    The returned dictionary is the **final output** of the skill pipeline.
+    OpenClaw reads it and uses the embedded health state, rewritten question,
+    and ``answer_focus`` hint to produce a contextually grounded response in
+    the user's language.
+
+    Args:
+        summary: The merged summary dict (``user_id``, ``date``, ``daily``,
+            ``metrics``) produced by the skill pipeline.
+        user_query: The original question text entered by the user.
+        rewritten_query: The rewritten question produced by
+            :func:`~scripts.query_rewriter.rewrite_query_locally` or an
+            external LLM rewriter.
+        question_type: One of the six category strings returned by
+            :func:`classify_question`.
+
+    Returns:
+        A JSON-serialisable dictionary containing:
+
+        * ``question_type``            – category string.
+        * ``original_query``           – unmodified user question.
+        * ``rewritten_query``          – context-enriched version of the question.
+        * ``user_state``               – full nested health summary.
+        * ``answer_focus``             – natural-language hint about which metrics
+          to prioritise in the reply.
+        * ``output_style``             – style constraint string for the LLM.
+        * ``do_not_show_chain_of_thought`` – flag instructing OpenClaw to hide
+          internal reasoning from the end user.
+
+    Trigger condition:
+        Called by :func:`~scripts.openclaw_payload.build_payload` as the last
+        step of the skill pipeline, after question classification and query
+        rewriting are complete.
+    """
     return {
         "question_type": question_type,
         "original_query": user_query,
@@ -56,6 +148,20 @@ def build_openclaw_context(summary: Dict[str, Any], user_query: str, rewritten_q
 
 
 def _answer_focus(question_type: str) -> str:
+    """Return a natural-language description of which health metrics to emphasise for a given question type.
+
+    Args:
+        question_type: One of the six category strings returned by
+            :func:`classify_question`.
+
+    Returns:
+        A Chinese-language sentence naming the most relevant metrics for the
+        category.  Falls back to the ``"general_health"`` description for
+        unrecognised category strings.
+
+    Trigger condition:
+        Called internally by :func:`build_openclaw_context`.
+    """
     mapping = {
         "work_meeting": "重点关注压力、恢复、睡眠、心率、RMSSD、静息心率、疲劳和注意力状态。",
         "exercise": "重点关注活动水平、步数、卡路里、活跃分钟、久坐、恢复和睡眠。",
