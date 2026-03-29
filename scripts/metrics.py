@@ -5,19 +5,19 @@ import math
 
 
 def safe_float(v: object) -> Optional[float]:
-    """Convert a value to float, returning None if conversion is not possible.
+    """将值转换为浮点数，如果无法转换则返回 None。
 
-    Args:
-        v: The value to convert. Can be any type.
+    参数：
+        v: 要转换的值，可以是任何类型。
 
-    Returns:
-        The float representation of ``v``, or ``None`` if the value is
-        ``None``, an empty string, or cannot be cast to float.
+    返回：
+        ``v`` 的浮点表示，如果值为
+        ``None``、空字符串或无法转换为浮点数，则返回 ``None``。
 
-    Trigger condition:
-        Called by ``JianDataParser`` whenever a raw CSV cell value is read
-        so that missing or malformed entries are represented as ``None``
-        rather than raising an exception downstream.
+    触发条件：
+        每当 ``JianDataParser`` 读取原始 CSV 单元格值时调用，
+        以便将缺失或格式错误的条目表示为 ``None``
+        而不是在下游引发异常。
     """
     try:
         if v is None or v == "":
@@ -28,18 +28,17 @@ def safe_float(v: object) -> Optional[float]:
 
 
 def mean(values: List[Optional[float]]) -> float:
-    """Compute the arithmetic mean of a list, ignoring ``None`` entries.
+    """计算列表的算术平均值，忽略 ``None`` 条目。
 
-    Args:
-        values: A list of numeric values that may contain ``None``.
+    参数：
+        values: 可能包含 ``None`` 的数值列表。
 
-    Returns:
-        The mean of the non-``None`` values, or ``0.0`` if the list is
-        empty after filtering.
+    返回：
+        非 ``None`` 值的均值，如果过滤后列表为空则返回 ``0.0``。
 
-    Trigger condition:
-        Called by ``JianDataParser.build_7day_summary`` when summarising
-        each metric over a rolling 7-day window.
+    触发条件：
+        当 ``JianDataParser.build_7day_summary`` 在滚动7天窗口中
+        汇总每个指标时调用。
     """
     vals = [v for v in values if v is not None]
     if not vals:
@@ -48,18 +47,18 @@ def mean(values: List[Optional[float]]) -> float:
 
 
 def std(values: List[Optional[float]]) -> float:
-    """Compute the sample standard deviation of a list, ignoring ``None`` entries.
+    """计算列表的样本标准差，忽略 ``None`` 条目。
 
-    Args:
-        values: A list of numeric values that may contain ``None``.
+    参数：
+        values: 可能包含 ``None`` 的数值列表。
 
-    Returns:
-        The sample standard deviation of the non-``None`` values, or
-        ``0.0`` when fewer than two valid values are present.
+    返回：
+        非 ``None`` 值的样本标准差，当有效值少于两个时
+        返回 ``0.0``。
 
-    Trigger condition:
-        Called by ``JianDataParser.build_7day_summary`` alongside
-        :func:`mean` to provide a spread measure for each metric.
+    触发条件：
+        由 ``JianDataParser.build_7day_summary`` 与
+        :func:`mean` 一起调用，为每个指标提供离散度量。
     """
     vals = [v for v in values if v is not None]
     if len(vals) < 2:
@@ -74,30 +73,30 @@ def trend_label(
     sd: float,
     higher_is_better: bool = True,
 ) -> str:
-    """Classify a metric value as ``"high"``, ``"medium"``, or ``"low"`` relative to its 7-day baseline.
+    """将指标值相对于其7天基线分类为 ``"high"``、``"medium"`` 或 ``"low"``。
 
-    The thresholds are ±0.5 standard deviations from the mean:
+    阈值为均值的 ±0.5 标准差：
 
-    * ``"high"`` – value is above the upper threshold (or below the lower
-      threshold when *higher_is_better* is ``False``).
-    * ``"low"``  – opposite of ``"high"``.
-    * ``"medium"`` – value falls within ±0.5 SD of the mean, or when SD is zero.
+    * ``"high"`` – 值高于上限阈值（或当 *higher_is_better* 为 ``False`` 时
+      低于下限阈值）。
+    * ``"low"``  – ``"high"`` 的相反情况。
+    * ``"medium"`` – 值落在均值 ±0.5 标准差范围内，或当标准差为零时。
 
-    Args:
-        value: The latest (today's) metric value.
-        avg: The 7-day mean of the metric.
-        sd: The 7-day sample standard deviation of the metric.
-        higher_is_better: When ``True`` (default) a value above the mean is
-            labelled ``"high"`` (good); when ``False`` a value *below* the mean
-            is ``"high"`` (good).  For example, *resting_hr* and *stress_score*
-            use ``higher_is_better=False``.
+    参数：
+        value: 最新（今日）的指标值。
+        avg: 指标的7天均值。
+        sd: 指标的7天样本标准差。
+        higher_is_better: 当为 ``True``（默认）时，高于均值的值
+            标记为 ``"high"``（好）；当为 ``False`` 时，*低于*均值的值
+            为 ``"high"``（好）。例如，*resting_hr* 和 *stress_score*
+            使用 ``higher_is_better=False``。
 
-    Returns:
-        One of ``"high"``, ``"medium"``, or ``"low"``.
+    返回：
+        ``"high"``、``"medium"`` 或 ``"low"`` 之一。
 
-    Trigger condition:
-        Called once per metric inside ``JianDataParser.build_7day_summary``
-        after :func:`mean` and :func:`std` have been computed.
+    触发条件：
+        在 :func:`mean` 和 :func:`std` 计算完成后，
+        在 ``JianDataParser.build_7day_summary`` 内为每个指标调用一次。
     """
     if sd == 0:
         return "medium"

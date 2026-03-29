@@ -8,49 +8,49 @@ from .metrics import safe_float, mean, std, trend_label
 
 
 class JianDataParser:
-    """Parse and summarise health data from the LifeSnaps-derived ``jian.csv`` file.
+    """解析并汇总来自 LifeSnaps 衍生的 ``jian.csv`` 文件中的健康数据。
 
-    This is the **entry point** for all data operations in the skill pipeline.
-    It is instantiated once with the CSV path and then used to generate both
-    a per-day snapshot and a 7-day rolling summary that feed the prompt builder.
+    这是技能管道中所有数据操作的**入口点**。
+    它在实例化时接收 CSV 路径，然后用于生成每日快照
+    和7天滚动摘要，作为提示构建器的输入。
 
-    Trigger condition:
-        Instantiated and called at the start of every skill invocation, before
-        question classification or query rewriting.  The typical call sequence is::
+    触发条件：
+        在每次技能调用开始时实例化并调用，在
+        问题分类或查询改写之前。典型调用序列如下::
 
             parser = JianDataParser(csv_path)
             daily  = parser.build_daily_summary(user_id, date)
             week   = parser.build_7day_summary(user_id, date)
 
-    Attributes:
-        csv_path: Resolved path to the CSV data file.
-        df: The loaded ``pandas.DataFrame``; ``None`` until :meth:`load` is called.
+    属性：
+        csv_path: CSV 数据文件的解析路径。
+        df: 已加载的 ``pandas.DataFrame``；在调用 :meth:`load` 之前为 ``None``。
     """
 
     def __init__(self, csv_path: str) -> None:
-        """Initialise the parser with the path to the CSV data file.
+        """使用 CSV 数据文件的路径初始化解析器。
 
-        Args:
-            csv_path: Absolute or relative path to ``jian.csv`` (or any file
-                with an identical schema).  The file is *not* read until
-                :meth:`load` (or a method that calls it) is invoked.
+        参数：
+            csv_path: ``jian.csv`` 的绝对或相对路径（或任何具有相同
+                模式的文件）。文件在调用 :meth:`load`（或调用它的方法）
+                之前不会被读取。
         """
         self.csv_path = Path(csv_path)
         self.df: Optional[pd.DataFrame] = None
 
     def load(self) -> pd.DataFrame:
-        """Read the CSV file into memory and parse the ``date`` column.
+        """将 CSV 文件读取到内存中并解析 ``date`` 列。
 
-        Returns:
-            The loaded ``pandas.DataFrame`` with the ``date`` column coerced
-            to ``datetime64``.
+        返回：
+            已加载的 ``pandas.DataFrame``，其中 ``date`` 列被转换为
+            ``datetime64`` 类型。
 
-        Raises:
-            FileNotFoundError: If ``csv_path`` does not point to an existing file.
+        异常：
+            FileNotFoundError: 如果 ``csv_path`` 未指向现有文件。
 
-        Trigger condition:
-            Called lazily by :meth:`_ensure_loaded` the first time data is
-            needed.  Can also be called explicitly to pre-load the file.
+        触发条件：
+            在第一次需要数据时由 :meth:`_ensure_loaded` 延迟调用。
+            也可以显式调用以预加载文件。
         """
         if not self.csv_path.exists():
             raise FileNotFoundError(f"CSV not found: {self.csv_path}")
@@ -59,32 +59,29 @@ class JianDataParser:
         return self.df
 
     def _ensure_loaded(self) -> None:
-        """Ensure the CSV has been loaded before attempting to query it.
+        """确保在尝试查询 CSV 之前已加载文件。
 
-        Trigger condition:
-            Called internally by every public data-access method.
+        触发条件：
+            由每个公共数据访问方法在内部调用。
         """
         if self.df is None:
             self.load()
 
     def get_user_daily_row(self, user_id: str, date: str) -> Dict[str, Any]:
-        """Return the single CSV row that matches *user_id* and *date*.
+        """返回匹配 *user_id* 和 *date* 的单个 CSV 行。
 
-        Args:
-            user_id: The user identifier as it appears in the ``id`` column.
-            date: An ISO-8601 date string such as ``"2021-07-31"``.
+        参数：
+            user_id: 在 ``id`` 列中出现的用户标识符。
+            date: ISO-8601 格式的日期字符串，例如 ``"2021-07-31"``。
 
-        Returns:
-            A dictionary mapping column names to their raw values for the
-            matched row.
+        返回：
+            将列名映射到匹配行原始值的字典。
 
-        Raises:
-            ValueError: If no row is found for the given ``user_id`` / ``date``
-                combination.
+        异常：
+            ValueError: 如果未找到给定 ``user_id`` / ``date`` 组合的行。
 
-        Trigger condition:
-            Called by :meth:`build_daily_summary` to obtain the raw values
-            for today's health snapshot.
+        触发条件：
+            由 :meth:`build_daily_summary` 调用，以获取今日健康快照的原始值。
         """
         self._ensure_loaded()
         target_date = pd.to_datetime(date, errors="coerce")
@@ -99,21 +96,20 @@ class JianDataParser:
         return row.iloc[0].to_dict()
 
     def get_7day_window(self, user_id: str, date: str) -> pd.DataFrame:
-        """Return the rows that fall within the 7 days ending on (and including) *date*.
+        """返回落在以 *date* 结束（含）的7天内的行。
 
-        The window is *open on the left*, i.e. it includes ``(date − 7 days, date]``.
+        窗口在左侧是**开放的**，即包含 ``(date − 7 天, date]``。
 
-        Args:
-            user_id: The user identifier as it appears in the ``id`` column.
-            date: The end date (inclusive) of the rolling window in ISO-8601
-                format, e.g. ``"2021-07-31"``.
+        参数：
+            user_id: 在 ``id`` 列中出现的用户标识符。
+            date: 滚动窗口的结束日期（含），ISO-8601 格式，
+                例如 ``"2021-07-31"``。
 
-        Returns:
-            A ``pandas.DataFrame`` with at most 7 rows, sorted by date ascending.
+        返回：
+            最多包含7行的 ``pandas.DataFrame``，按日期升序排列。
 
-        Trigger condition:
-            Called by :meth:`build_7day_summary` to gather the raw values
-            needed for trend computation.
+        触发条件：
+            由 :meth:`build_7day_summary` 调用，以收集趋势计算所需的原始值。
         """
         self._ensure_loaded()
         target_date = pd.to_datetime(date, errors="coerce")
@@ -129,31 +125,27 @@ class JianDataParser:
         return window
 
     def build_daily_summary(self, user_id: str, date: str) -> Dict[str, Any]:
-        """Build a structured snapshot of a user's health data for a single day.
+        """构建用户单日健康数据的结构化快照。
 
-        The snapshot is divided into four sub-sections that map directly to the
-        categories defined in ``skill.md`` (§4.1):
+        快照分为五个子部分，直接映射到 ``skill.md``（§4.1）中定义的类别：
 
-        * ``profile``  – static demographic attributes.
-        * ``activity`` – step / calorie / active-minutes metrics.
-        * ``sleep``    – sleep duration, efficiency and stage ratios.
-        * ``stress``   – HRV, resting heart rate and stress / recovery scores.
-        * ``context``  – time-at-location proportions (HOME, WORK, TRANSIT …).
+        * ``profile``  – 静态人口统计属性。
+        * ``activity`` – 步数 / 卡路里 / 活跃分钟数指标。
+        * ``sleep``    – 睡眠时长、效率和睡眠阶段比例。
+        * ``stress``   – HRV、静息心率和压力/恢复评分。
+        * ``context``  – 位置时间比例（家、工作、交通等）。
 
-        Args:
-            user_id: The user identifier as it appears in the ``id`` column.
-            date: The target date in ISO-8601 format (e.g. ``"2021-07-31"``).
+        参数：
+            user_id: 在 ``id`` 列中出现的用户标识符。
+            date: ISO-8601 格式的目标日期（例如 ``"2021-07-31"``）。
 
-        Returns:
-            A nested dictionary suitable for direct use as the ``daily`` field
-            of the OpenClaw context payload.
+        返回：
+            适合直接用作 OpenClaw 上下文载荷中 ``daily`` 字段的嵌套字典。
 
-        Trigger condition:
-            First function called in the skill pipeline after the user's
-            question has been received.  The result is passed to
-            :func:`~scripts.prompt_builder.classify_question` and subsequently
-            merged into the final payload by
-            :func:`~scripts.openclaw_payload.build_payload`.
+        触发条件：
+            在接收到用户问题后，技能管道中第一个被调用的函数。
+            结果传递给 :func:`~scripts.prompt_builder.classify_question`，
+            并随后由 :func:`~scripts.openclaw_payload.build_payload` 合并到最终载荷中。
         """
         row = self.get_user_daily_row(user_id, date)
 
@@ -207,31 +199,29 @@ class JianDataParser:
         }
 
     def build_7day_summary(self, user_id: str, date: str) -> Dict[str, Any]:
-        """Compute rolling 7-day statistics for the key health metrics.
+        """计算关键健康指标的滚动7天统计数据。
 
-        For each metric the summary contains:
+        对于每个指标，摘要包含：
 
-        * ``latest``      – the value on *date* (today).
-        * ``7d_mean``     – mean over the window.
-        * ``7d_std``      – sample standard deviation over the window.
-        * ``trend_label`` – ``"high"``, ``"medium"``, or ``"low"`` relative to
-          the baseline (see :func:`~scripts.metrics.trend_label`).
+        * ``latest``      – *date*（今日）的值。
+        * ``7d_mean``     – 窗口内的均值。
+        * ``7d_std``      – 窗口内的样本标准差。
+        * ``trend_label`` – 相对于基线的 ``"high"``、``"medium"`` 或 ``"low"``
+          （参见 :func:`~scripts.metrics.trend_label`）。
 
-        Args:
-            user_id: The user identifier as it appears in the ``id`` column.
-            date: The target date in ISO-8601 format (e.g. ``"2021-07-31"``).
+        参数：
+            user_id: 在 ``id`` 列中出现的用户标识符。
+            date: ISO-8601 格式的目标日期（例如 ``"2021-07-31"``）。
 
-        Returns:
-            A dictionary with keys ``user_id``, ``date``, ``window_days``, and
-            ``metrics``.  The ``metrics`` sub-dictionary is keyed by metric name
-            and is consumed directly by
-            :func:`~scripts.prompt_builder.build_rewrite_prompt` and
-            :func:`~scripts.prompt_builder.build_openclaw_context`.
+        返回：
+            包含键 ``user_id``、``date``、``window_days`` 和
+            ``metrics`` 的字典。``metrics`` 子字典以指标名称为键，
+            直接由 :func:`~scripts.prompt_builder.build_rewrite_prompt` 和
+            :func:`~scripts.prompt_builder.build_openclaw_context` 使用。
 
-        Trigger condition:
-            Called immediately after :meth:`build_daily_summary` in the skill
-            pipeline.  Both results are merged into a single ``summary`` dict
-            that flows through the rest of the pipeline.
+        触发条件：
+            在技能管道中紧接 :meth:`build_daily_summary` 之后调用。
+            两个结果被合并为一个 ``summary`` 字典，流经管道的其余部分。
         """
         window = self.get_7day_window(user_id, date)
 

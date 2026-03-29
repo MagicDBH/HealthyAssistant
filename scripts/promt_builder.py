@@ -4,36 +4,35 @@ from typing import Dict, Any
 
 
 def classify_question(user_query: str) -> str:
-    """Classify a user's free-text question into one of six pre-defined categories.
+    """将用户的自由文本问题分类为六个预定义类别之一。
 
-    The classification is keyword-based and operates on the lowercased query.
-    It is intentionally simple and fast – no LLM call is required.
+    分类基于关键词，对查询的小写形式进行操作。
+    设计上简单快速——不需要调用 LLM。
 
-    Categories (in priority order):
+    类别（按优先级排序）：
 
-    * ``"work_meeting"``   – questions about meetings, work performance, exams,
-      presentations, overtime, or high-pressure tasks.
-    * ``"exercise"``       – questions about workouts, running, steps, weight
-      loss, or muscle gain.
-    * ``"sleep"``          – questions about sleep quality, bedtime habits,
-      all-nighters, or catching up on sleep.
-    * ``"travel"``         – questions about commuting, flights, trains, business
-      trips, or jet lag.
-    * ``"stress_recovery"``– questions about stress levels, fatigue, anxiety,
-      relaxation, or recovery.
-    * ``"general_health"`` – fallback for any other health-related question.
+    * ``"work_meeting"``   – 关于会议、工作表现、考试、
+      演讲、加班或高压任务的问题。
+    * ``"exercise"``       – 关于锻炼、跑步、步数、减重
+      或增肌的问题。
+    * ``"sleep"``          – 关于睡眠质量、就寝习惯、
+      熬夜或补觉的问题。
+    * ``"travel"``         – 关于通勤、飞行、高铁、出差
+      或时差的问题。
+    * ``"stress_recovery"``– 关于压力水平、疲劳、焦虑、
+      放松或恢复的问题。
+    * ``"general_health"`` – 任何其他健康相关问题的后备类别。
 
-    Args:
-        user_query: The raw question text entered by the user.
+    参数：
+        user_query: 用户输入的原始问题文本。
 
-    Returns:
-        One of the six category strings listed above.
+    返回：
+        上述六个类别字符串之一。
 
-    Trigger condition:
-        Called once per skill invocation immediately after
-        :meth:`~scripts.data_parser.JianDataParser.build_daily_summary` returns.
-        The returned category drives both query rewriting and the ``answer_focus``
-        hint injected into the OpenClaw payload.
+    触发条件：
+        在每次技能调用中，紧接
+        :meth:`~scripts.data_parser.JianDataParser.build_daily_summary` 返回后调用一次。
+        返回的类别驱动查询改写以及注入 OpenClaw 载荷的 ``answer_focus`` 提示。
     """
     q = user_query.lower()
 
@@ -51,26 +50,25 @@ def classify_question(user_query: str) -> str:
 
 
 def build_rewrite_prompt(summary: Dict[str, Any], user_query: str) -> str:
-    """Build a structured Chinese-language prompt that instructs an LLM to rewrite the user's query.
+    """构建结构化的中文提示，指示 LLM 改写用户的查询。
 
-    The prompt embeds a compact metric-trend snapshot so the LLM can ground
-    the rewritten question in the user's actual health state.
+    提示嵌入了一个紧凑的指标趋势快照，以便 LLM 能够将
+    改写后的问题与用户的实际健康状态相联系。
 
-    Args:
-        summary: The merged summary dict produced by the skill pipeline,
-            expected to contain a ``"metrics"`` key whose value is a dict of
-            ``{metric_name: {"trend_label": str, ...}}``.
-        user_query: The original question text entered by the user.
+    参数：
+        summary: 由技能管道生成的合并摘要字典，
+            预期包含 ``"metrics"`` 键，其值为
+            ``{metric_name: {"trend_label": str, ...}}`` 格式的字典。
+        user_query: 用户输入的原始问题文本。
 
-    Returns:
-        A multi-line string ready to be sent as the system or user message to
-        the rewriting LLM.
+    返回：
+        可作为系统或用户消息发送到改写 LLM 的多行字符串。
 
-    Trigger condition:
-        Called only when an external LLM-powered rewrite is desired (i.e. when
-        the caller opts *not* to use the local rule-based rewriter in
-        :mod:`scripts.query_rewriter`).  In the default CLI pipeline
-        :func:`~scripts.query_rewriter.rewrite_query_locally` is used instead.
+    触发条件：
+        仅在需要外部 LLM 驱动的改写时调用（即调用方选择
+        *不*使用 :mod:`scripts.query_rewriter` 中的本地基于规则的改写器）。
+        在默认 CLI 管道中，使用
+        :func:`~scripts.query_rewriter.rewrite_query_locally` 代替。
     """
     metrics = summary.get("metrics", {})
     compact = []
@@ -101,40 +99,37 @@ def build_openclaw_context(
     rewritten_query: str,
     question_type: str,
 ) -> Dict[str, Any]:
-    """Assemble the structured context payload that OpenClaw uses to generate a personalised reply.
+    """组装 OpenClaw 用于生成个性化回复的结构化上下文载荷。
 
-    The returned dictionary is the **final output** of the skill pipeline.
-    OpenClaw reads it and uses the embedded health state, rewritten question,
-    and ``answer_focus`` hint to produce a contextually grounded response in
-    the user's language.
+    返回的字典是技能管道的**最终输出**。
+    OpenClaw 读取它，并使用嵌入的健康状态、改写后的问题
+    和 ``answer_focus`` 提示，以用户语言生成有上下文依据的回复。
 
-    Args:
-        summary: The merged summary dict (``user_id``, ``date``, ``daily``,
-            ``metrics``) produced by the skill pipeline.
-        user_query: The original question text entered by the user.
-        rewritten_query: The rewritten question produced by
-            :func:`~scripts.query_rewriter.rewrite_query_locally` or an
-            external LLM rewriter.
-        question_type: One of the six category strings returned by
-            :func:`classify_question`.
+    参数：
+        summary: 由技能管道生成的合并摘要字典（``user_id``、``date``、``daily``、
+            ``metrics``）。
+        user_query: 用户输入的原始问题文本。
+        rewritten_query: 由
+            :func:`~scripts.query_rewriter.rewrite_query_locally` 或外部
+            LLM 改写器生成的改写问题。
+        question_type: 由
+            :func:`classify_question` 返回的六个类别字符串之一。
 
-    Returns:
-        A JSON-serialisable dictionary containing:
+    返回：
+        包含以下字段的可 JSON 序列化字典：
 
-        * ``question_type``            – category string.
-        * ``original_query``           – unmodified user question.
-        * ``rewritten_query``          – context-enriched version of the question.
-        * ``user_state``               – full nested health summary.
-        * ``answer_focus``             – natural-language hint about which metrics
-          to prioritise in the reply.
-        * ``output_style``             – style constraint string for the LLM.
-        * ``do_not_show_chain_of_thought`` – flag instructing OpenClaw to hide
-          internal reasoning from the end user.
+        * ``question_type``            – 类别字符串。
+        * ``original_query``           – 未修改的用户问题。
+        * ``rewritten_query``          – 问题的上下文丰富版本。
+        * ``user_state``               – 完整的嵌套健康摘要。
+        * ``answer_focus``             – 关于在回复中优先考虑哪些指标的自然语言提示。
+        * ``output_style``             – LLM 的风格约束字符串。
+        * ``do_not_show_chain_of_thought`` – 指示 OpenClaw 向最终用户隐藏
+          内部推理的标志。
 
-    Trigger condition:
-        Called by :func:`~scripts.openclaw_payload.build_payload` as the last
-        step of the skill pipeline, after question classification and query
-        rewriting are complete.
+    触发条件：
+        由 :func:`~scripts.openclaw_payload.build_payload` 在技能管道的最后一步调用，
+        在问题分类和查询改写完成之后。
     """
     return {
         "question_type": question_type,
@@ -148,19 +143,18 @@ def build_openclaw_context(
 
 
 def _answer_focus(question_type: str) -> str:
-    """Return a natural-language description of which health metrics to emphasise for a given question type.
+    """返回针对给定问题类型应强调哪些健康指标的自然语言描述。
 
-    Args:
-        question_type: One of the six category strings returned by
-            :func:`classify_question`.
+    参数：
+        question_type: 由
+            :func:`classify_question` 返回的六个类别字符串之一。
 
-    Returns:
-        A Chinese-language sentence naming the most relevant metrics for the
-        category.  Falls back to the ``"general_health"`` description for
-        unrecognised category strings.
+    返回：
+        以中文命名该类别最相关指标的句子。
+        对于无法识别的类别字符串，回退到 ``"general_health"`` 描述。
 
-    Trigger condition:
-        Called internally by :func:`build_openclaw_context`.
+    触发条件：
+        由 :func:`build_openclaw_context` 内部调用。
     """
     mapping = {
         "work_meeting": "重点关注压力、恢复、睡眠、心率、RMSSD、静息心率、疲劳和注意力状态。",

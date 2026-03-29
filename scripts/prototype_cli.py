@@ -1,15 +1,15 @@
-"""Command-line interface for the Sensor-in-the-Loop Health Assistant skill.
+"""面向传感器在环健康助手技能的命令行界面。
 
-This module provides a lightweight CLI entry point for testing and local
-development.  It exercises the full skill pipeline end-to-end:
+本模块提供了用于测试和本地开发的轻量级 CLI 入口点。
+它端到端地执行完整的技能管道：
 
-1. Parse health data from a CSV file (:class:`~scripts.data_parser.JianDataParser`).
-2. Classify the user's question (:func:`~scripts.prompt_builder.classify_question`).
-3. Rewrite the question with health context (:func:`~scripts.query_rewriter.rewrite_query_locally`).
-4. Build the OpenClaw payload (:func:`~scripts.openclaw_payload.build_payload`).
-5. Print the resulting JSON to stdout.
+1. 从 CSV 文件解析健康数据（:class:`~scripts.data_parser.JianDataParser`）。
+2. 对用户问题进行分类（:func:`~scripts.prompt_builder.classify_question`）。
+3. 用健康上下文改写问题（:func:`~scripts.query_rewriter.rewrite_query_locally`）。
+4. 构建 OpenClaw 载荷（:func:`~scripts.openclaw_payload.build_payload`）。
+5. 将生成的 JSON 打印到标准输出。
 
-Usage::
+用法::
 
     python -m scripts.prototype_cli \\
         --data data/jian.csv \\
@@ -31,22 +31,22 @@ from .openclaw_payload import build_payload
 
 
 def main() -> None:
-    """Entry point for the prototype CLI.
+    """原型 CLI 的入口点。
 
-    Parses command-line arguments, runs the full skill pipeline, and prints
-    the resulting OpenClaw payload as pretty-printed JSON to stdout.
+    解析命令行参数，运行完整的技能管道，并将
+    生成的 OpenClaw 载荷以格式化 JSON 打印到标准输出。
 
-    Trigger condition:
-        Invoked directly via ``python -m scripts.prototype_cli`` or through
-        the ``skill_cli`` console script entry point defined in
-        ``pyproject.toml`` / ``setup.py``.
+    触发条件：
+        通过 ``python -m scripts.prototype_cli`` 直接调用，或通过
+        ``pyproject.toml`` / ``setup.py`` 中定义的
+        ``skill_cli`` 控制台脚本入口点调用。
     """
-    parser = argparse.ArgumentParser(description="OpenClaw Sensor-in-the-Loop Health Assistant")
-    parser.add_argument("--data", default=settings.data_path, help="Path to data/jian.csv")
-    parser.add_argument("--user-id", required=True, help="User id from the id column")
-    parser.add_argument("--date", required=True, help="Target date, e.g. 2021-07-31")
-    parser.add_argument("--query", required=True, help="User question")
-    parser.add_argument("--show-summary", action="store_true", help="Print parsed summary")
+    parser = argparse.ArgumentParser(description="OpenClaw 传感器在环健康助手")
+    parser.add_argument("--data", default=settings.data_path, help="data/jian.csv 的路径")
+    parser.add_argument("--user-id", required=True, help="id 列中的用户 ID")
+    parser.add_argument("--date", required=True, help="目标日期，例如 2021-07-31")
+    parser.add_argument("--query", required=True, help="用户问题")
+    parser.add_argument("--show-summary", action="store_true", help="打印解析摘要")
     args = parser.parse_args()
 
     dp = JianDataParser(args.data)
