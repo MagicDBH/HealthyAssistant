@@ -57,7 +57,7 @@
 - 我明天要开会，今天该怎么调整？
 - 我适合明天早上的会议吗？
 - 我后天有演讲，今晚应该怎么准备？
-- ���今天工作效率怎么样？
+- 我今天工作效率怎么样？
 - 我现在适合加班吗？
 - 我明天要赶路/出差，怎么安排更好？
 - 我最近能承受高强度工作吗？
@@ -77,7 +77,7 @@
 - 我今天适合早起赶车吗？
 - 我现在适合开始旅程吗？
 
-### 2.6 恢复、疲��、压力、情绪支持类
+### 2.6 恢复、疲劳、压力、情绪支持类
 - 我最近是不是压力太大了？
 - 我为什么总觉得累？
 - 我现在该怎么恢复？
@@ -98,7 +98,7 @@
 - 我最近该怎么平衡工作和健康？
 - 我能不能把作息调好一点？
 - 我现在状态适合做哪些事？
-- 我该怎么安排���天和接下来两天？
+- 我该怎么安排今天和接下来两天？
 - 我最近需要调整生活方式吗？
 
 ---
@@ -111,7 +111,7 @@
 - 基于真实穿戴设备或行为数据的建议生成
 - 结合日常状态进行任务安排判断
 - 提供可执行的生活方式优化建议
-- 生成“传感器在环”的个性化上下文
+- 生成"传感器在环"的个性化上下文
 
 ### 3.2 不适用范围
 以下情况不应使用该 skill 作为主要回答方式：
@@ -179,7 +179,7 @@
 ### 4.2 数据使用原则
 - 优先使用用户当天数据；
 - 同时读取过去 7 天数据，生成趋势；
-- 如果部分字段缺失，应在输出中注明“数据不足”；
+- 如果部分字段缺失，应在输出中注明"数据不足"；
 - 不要捏造不存在的数据。
 
 ---
@@ -281,7 +281,7 @@
 
 #### E. 泛健康状态问题
 重点关注：
-- 活动、睡眠、压力三��类全量指标
+- 活动、睡眠、压力三大类全量指标
 - 最近 7 天趋势
 - 当天是否异常偏低或偏高
 
@@ -357,7 +357,7 @@
 - 语气自然，不机械；
 - 尽量给出优先级明确的建议；
 - 结合真实数据说明理由；
-- 必要时给出“如果你今晚/明天/接下来 24 小时想这样做，可以怎么安排”。
+- 必要时给出"如果你今晚/明天/接下来 24 小时想这样做，可以怎么安排"。
 
 ### 8.2 安全边界
 - 不做医疗诊断；
@@ -402,9 +402,90 @@
 
 ---
 
-## 11. 期望效果
+## 11. 函数调用规范
 
-这个 skill 的目标不是只回答“健康不健康”，而是把用户的真实身体状态嵌入到日常决策中，例如：
+本节明确说明 `scripts/` 目录中每个函数的**调用时机**、**参数**和**返回值**，供 OpenClaw / Claude Code 自动注册和调用。
+
+### 调用顺序（数据流程）
+
+```
+用户问题
+    │
+    ▼
+[Step 1] JianDataParser.build_daily_summary(user_id, date)
+    │     → 返回当日健康快照（活动 / 睡眠 / 压力 / 场景）
+    │
+    ▼
+[Step 2] JianDataParser.build_7day_summary(user_id, date)
+    │     → 返回近 7 天各指标均值、标准差、趋势标签
+    │
+    ├─── 合并为 summary = {user_id, date, daily, metrics}
+    │
+    ▼
+[Step 3] classify_question(user_query)
+    │     → 返回问题类别字符串
+    │       可选值：work_meeting / exercise / sleep /
+    │               travel / stress_recovery / general_health
+    │
+    ▼
+[Step 4] rewrite_query_locally(summary, user_query, question_type)
+    │     → 返回上下文增强后的问题（中文字符串）
+    │
+    ▼
+[Step 5] build_payload(summary, original_query, rewritten_query, question_type)
+          → 返回结构化 JSON 上下文，交由 OpenClaw LLM 生成最终回复
+```
+
+### 函数详细说明
+
+#### `JianDataParser.build_daily_summary`
+- **模块**：`scripts.data_parser`
+- **何时调用**：skill 被触发后**第一步**，在问题分类之前。
+- **参数**：
+  - `user_id` (str)：CSV `id` 列的用户标识。
+  - `date` (str)：目标日期，ISO-8601 格式，如 `"2021-07-31"`。
+- **返回值**：包含 `profile` / `activity` / `sleep` / `stress` / `context` 的嵌套字典。
+- **异常**：
+  - `FileNotFoundError`：CSV 文件不存在。
+  - `ValueError`：指定用户/日期无数据。
+
+#### `JianDataParser.build_7day_summary`
+- **模块**：`scripts.data_parser`
+- **何时调用**：紧跟 `build_daily_summary` 之后，**第二步**。
+- **参数**：同上（`user_id`, `date`）。
+- **返回值**：包含 `window_days` 和 `metrics` 的字典；每个指标含 `latest` / `7d_mean` / `7d_std` / `trend_label`。
+
+#### `classify_question`
+- **模块**：`scripts.prompt_builder`
+- **何时调用**：两个数据摘要合并后，**第三步**。
+- **参数**：
+  - `user_query` (str)：用户原始问题。
+- **返回值**：六类之一的字符串：`work_meeting` / `exercise` / `sleep` / `travel` / `stress_recovery` / `general_health`。
+
+#### `rewrite_query_locally`
+- **模块**：`scripts.query_rewriter`
+- **何时调用**：`classify_question` 返回后，**第四步**。不需要外部 LLM。
+- **参数**：
+  - `summary` (dict)：合并摘要。
+  - `user_query` (str)：原始问题。
+  - `question_type` (str)：`classify_question` 的返回值。
+- **返回值**：上下文增强后的中文问题字符串。
+
+#### `build_payload`
+- **模块**：`scripts.openclaw_payload`
+- **何时调用**：管道**最后一步**，整合所有数据后调用。
+- **参数**：
+  - `summary` (dict)：合并摘要。
+  - `original_query` (str)：用户原始问题。
+  - `rewritten_query` (str)：重写后的问题。
+  - `question_type` (str)：问题类别。
+- **返回值**：完整的 OpenClaw 上下文 JSON，含 `question_type` / `original_query` / `rewritten_query` / `user_state` / `answer_focus` / `output_style` / `do_not_show_chain_of_thought`。
+
+---
+
+## 12. 期望效果
+
+这个 skill 的目标不是只回答"健康不健康"，而是把用户的真实身体状态嵌入到日常决策中，例如：
 - 明天要不要开会前加班
 - 今晚要不要运动
 - 今天是休息还是推进任务
@@ -412,4 +493,4 @@
 - 是否应该调整作息
 - 是否应该减少压力负荷
 
-通过这种方式，系统能更像一个真正“懂当前状态”的个性化健康助手。
+通过这种方式，系统能更像一个真正"懂当前状态"的个性化健康助手。
