@@ -1,0 +1,110 @@
+{
+  "question_type": "work_meeting",
+  "original_query": "我明天要开会，今天该怎么调整？",
+  "rewritten_query": "结合我当前的睡眠、压力和恢复状态，明天我适合参加会议或处理高压工作吗？如果不适合，应该如何调整？原问题：我明天要开会，今天该怎么调整？",
+  "user_state": {
+    "user_id": "122",
+    "date": "2021-07-31",
+    "daily": {
+      "user_id": "122",
+      "date": "2021-07-31",
+      "profile": {
+        "age": 34,
+        "gender": "male",
+        "bmi": 23.5,
+        "step_goal": 8000,
+        "step_goal_label": "active"
+      },
+      "activity": {
+        "calories": 2150.0,
+        "distance": 6.2,
+        "steps": 7340.0,
+        "lightly_active_minutes": 185.0,
+        "moderately_active_minutes": 22.0,
+        "very_active_minutes": 8.0,
+        "sedentary_minutes": 620.0
+      },
+      "sleep": {
+        "sleep_duration": 5.9,
+        "minutesToFallAsleep": 18.0,
+        "minutesAsleep": 354.0,
+        "minutesAwake": 41.0,
+        "minutesAfterWakeup": 7.0,
+        "sleep_efficiency": 88.0,
+        "sleep_deep_ratio": 0.14,
+        "sleep_wake_ratio": 0.10,
+        "sleep_light_ratio": 0.52,
+        "sleep_rem_ratio": 0.24
+      },
+      "stress": {
+        "rmssd": 28.5,
+        "resting_hr": 68.0,
+        "nremhr": 61.0,
+        "stress_score": 72.0,
+        "sleep_points_percentage": 0.61,
+        "responsiveness_points_percentage": 0.58
+      },
+      "context": {
+        "HOME": 0.42,
+        "HOME_OFFICE": 0.21,
+        "WORK/SCHOOL": 0.27,
+        "OUTDOORS": 0.06,
+        "TRANSIT": 0.03,
+        "OTHER": 0.01
+      }
+    },
+    "metrics": {
+      "steps": {
+        "latest": 7340.0,
+        "7d_mean": 8150.0,
+        "7d_std": 950.0,
+        "trend_label": "low"
+      },
+      "calories": {
+        "latest": 2150.0,
+        "7d_mean": 2280.0,
+        "7d_std": 180.0,
+        "trend_label": "low"
+      },
+      "sleep_duration": {
+        "latest": 5.9,
+        "7d_mean": 6.8,
+        "7d_std": 0.7,
+        "trend_label": "low"
+      },
+      "sleep_efficiency": {
+        "latest": 88.0,
+        "7d_mean": 90.5,
+        "7d_std": 3.1,
+        "trend_label": "medium"
+      },
+      "rmssd": {
+        "latest": 28.5,
+        "7d_mean": 35.2,
+        "7d_std": 5.8,
+        "trend_label": "low"
+      },
+      "resting_hr": {
+        "latest": 68.0,
+        "7d_mean": 65.0,
+        "7d_std": 3.0,
+        "trend_label": "low"
+      },
+      "stress_score": {
+        "latest": 72.0,
+        "7d_mean": 60.0,
+        "7d_std": 9.0,
+        "trend_label": "low"
+      },
+      "sedentary_minutes": {
+        "latest": 620.0,
+        "7d_mean": 580.0,
+        "7d_std": 45.0,
+        "trend_label": "low"
+      }
+    }
+  },
+  "answer_focus": "重点关注压力、恢复、睡眠、心率、RMSSD、静息心率、疲劳和注意力状态。",
+  "output_style": "中文、具体、可执行、温和、避免过度医疗化",
+  "do_not_show_chain_of_thought": true
+}
