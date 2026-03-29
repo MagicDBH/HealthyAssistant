@@ -1,16 +1,16 @@
 {
   "schema_version": "1.0",
   "name": "sensor_in_the_loop_health_assistant",
-  "display_name": "Sensor-in-the-Loop Personalized Health Assistant",
+  "display_name": "传感器闭环个性化健康助手",
   "version": "1.0.0",
-  "description": "Reads real wearable/sensor health data for a user and constructs a structured context payload that lets an LLM generate personalised, data-grounded health advice. Covers daily status, sleep, exercise, stress, recovery, travel, and work readiness.",
+  "description": "读取用户的真实可穿戴设备/传感器健康数据，构建结构化的上下文载荷，使LLM能够生成个性化、数据驱动的健康建议。涵盖日常状态、睡眠、运动、压力、恢复、出行和工作就绪状态。",
   "language": "zh-CN",
   "tags": ["health", "wellness", "sleep", "exercise", "stress", "personalization", "sensor", "wearable"],
   "entry_module": "scripts.prototype_cli",
   "entry_function": "main",
 
   "trigger": {
-    "description": "Activate this skill when the user asks about their health, body state, sleep, exercise, stress, fatigue, recovery, travel readiness, or work/meeting readiness.",
+    "description": "当用户询问自己的健康、身体状态、睡眠、运动、压力、疲劳、恢复、出行准备或工作/会议就绪状态时激活此技能。",
     "keywords": [
       "身体", "健康", "状态", "睡眠", "作息", "运动", "跑步", "健身",
       "压力", "疲劳", "累", "恢复", "焦虑", "放松",
@@ -34,120 +34,120 @@
     {
       "name": "JianDataParser.build_daily_summary",
       "module": "scripts.data_parser",
-      "description": "Load the health CSV file and return a structured snapshot of a single user's health data for one day. Covers activity, sleep, stress/HRV, and location-context dimensions.",
-      "when_to_call": "Call first, before any other function, to obtain today's raw health snapshot for the user.",
+      "description": "加载健康CSV文件，返回单个用户某一天的健康数据结构化快照。涵盖活动、睡眠、压力/心率变异性和位置上下文维度。",
+      "when_to_call": "首先调用此函数，在任何其他函数之前，以获取用户今天的原始健康快照。",
       "parameters": {
         "user_id": {
           "type": "string",
-          "description": "The user identifier matching the 'id' column in the CSV file."
+          "description": "与CSV文件'id'列匹配的用户标识符。"
         },
         "date": {
           "type": "string",
           "format": "date",
-          "description": "Target date in ISO-8601 format, e.g. '2021-07-31'."
+          "description": "目标日期，ISO-8601格式，例如'2021-07-31'。"
         }
       },
       "returns": {
         "type": "object",
-        "description": "Nested dict with keys: user_id, date, profile, activity, sleep, stress, context."
+        "description": "嵌套字典，包含以下键：user_id、date、profile、activity、sleep、stress、context。"
       }
     },
     {
       "name": "JianDataParser.build_7day_summary",
       "module": "scripts.data_parser",
-      "description": "Compute rolling 7-day statistics (mean, std, trend label) for key health metrics ending on the given date.",
-      "when_to_call": "Call immediately after build_daily_summary to enrich the payload with trend context.",
+      "description": "计算以给定日期结束的关键健康指标的滚动7天统计数据（平均值、标准差、趋势标签）。",
+      "when_to_call": "在build_daily_summary返回后立即调用，以使用趋势上下文丰富载荷。",
       "parameters": {
         "user_id": {
           "type": "string",
-          "description": "The user identifier matching the 'id' column in the CSV file."
+          "description": "与CSV文件'id'列匹配的用户标识符。"
         },
         "date": {
           "type": "string",
           "format": "date",
-          "description": "End date of the 7-day window in ISO-8601 format."
+          "description": "7天窗口的结束日期，ISO-8601格式。"
         }
       },
       "returns": {
         "type": "object",
-        "description": "Dict with keys: user_id, date, window_days, metrics. Each metric entry contains latest, 7d_mean, 7d_std, trend_label."
+        "description": "字典，包含以下键：user_id、date、window_days、metrics。每个指标条目包含latest、7d_mean、7d_std、trend_label。"
       }
     },
     {
       "name": "classify_question",
       "module": "scripts.prompt_builder",
-      "description": "Classify the user's free-text question into one of six health topic categories using keyword matching.",
-      "when_to_call": "Call after build_daily_summary returns, passing the user's original question text.",
+      "description": "使用关键字匹配将用户的自由文本问题分类到六个健康主题类别之一。",
+      "when_to_call": "在build_daily_summary返回后调用，传入用户的原始问题文本。",
       "parameters": {
         "user_query": {
           "type": "string",
-          "description": "The raw question text entered by the user."
+          "description": "用户输入的原始问题文本。"
         }
       },
       "returns": {
         "type": "string",
         "enum": ["work_meeting", "exercise", "sleep", "travel", "stress_recovery", "general_health"],
-        "description": "Category string that drives both query rewriting and the answer_focus hint."
+        "description": "类别字符串，驱动查询重写和answer_focus提示。"
       }
     },
     {
       "name": "rewrite_query_locally",
       "module": "scripts.query_rewriter",
-      "description": "Rewrite the user's question into a context-enriched version grounded in their health state, using rule-based templates (no external LLM required).",
-      "when_to_call": "Call after classify_question, passing the merged summary dict, the original query, and the question_type.",
+      "description": "使用基于规则的模板（无需外部LLM）将用户问题改写为根据其健康状态丰富的版本。",
+      "when_to_call": "在classify_question后调用，传入合并的摘要字典、原始查询和问题类型。",
       "parameters": {
         "summary": {
           "type": "object",
-          "description": "Merged summary dict containing user_id, date, daily snapshot, and metrics."
+          "description": "合并的摘要字典，包含user_id、date、日常快照和指标。"
         },
         "user_query": {
           "type": "string",
-          "description": "The original question text entered by the user."
+          "description": "用户输入的原始问题文本。"
         },
         "question_type": {
           "type": "string",
           "enum": ["work_meeting", "exercise", "sleep", "travel", "stress_recovery", "general_health"],
-          "description": "Category string returned by classify_question."
+          "description": "由classify_question返回的类别字符串。"
         }
       },
       "returns": {
         "type": "string",
-        "description": "A Chinese-language rewritten question that embeds relevant health context."
+        "description": "嵌入相关健康上下文的中文改写问题。"
       }
     },
     {
       "name": "build_payload",
       "module": "scripts.openclaw_payload",
-      "description": "Assemble the final structured context payload that OpenClaw passes to its LLM to generate a personalised health response.",
-      "when_to_call": "Call last, after rewrite_query_locally, to produce the output that OpenClaw consumes.",
+      "description": "组装最终结构化��下文载荷，OpenClaw将其传递给其LLM以生成个性化的健康响应。",
+      "when_to_call": "最后调用，在rewrite_query_locally之后，生成OpenClaw使用的输出。",
       "parameters": {
         "summary": {
           "type": "object",
-          "description": "Merged summary dict containing user_id, date, daily snapshot, and metrics."
+          "description": "合并的摘要字典，包含user_id、date、日常快照和指标。"
         },
         "original_query": {
           "type": "string",
-          "description": "The raw question text entered by the user."
+          "description": "用户输入的原始问题文本。"
         },
         "rewritten_query": {
           "type": "string",
-          "description": "The context-enriched rewrite from rewrite_query_locally."
+          "description": "来自rewrite_query_locally的上下文丰富的改写。"
         },
         "question_type": {
           "type": "string",
           "enum": ["work_meeting", "exercise", "sleep", "travel", "stress_recovery", "general_health"],
-          "description": "Category string returned by classify_question."
+          "description": "由classify_question返回的类别字符串。"
         }
       },
       "returns": {
         "type": "object",
-        "description": "JSON-serialisable dict with fields: question_type, original_query, rewritten_query, user_state, answer_focus, output_style, do_not_show_chain_of_thought."
+        "description": "JSON可序列化字典，包含以下字段：question_type、original_query、rewritten_query、user_state、answer_focus、output_style、do_not_show_chain_of_thought。"
       }
     }
   ],
 
   "pipeline": {
-    "description": "Ordered sequence of function calls for a single skill invocation.",
+    "description": "单个技能调用的有序函数调用序列。",
     "steps": [
       {
         "step": 1,
@@ -203,6 +203,6 @@
 
   "safety": {
     "not_a_medical_device": true,
-    "disclaimer": "This skill provides general wellness suggestions based on wearable data. It does not diagnose medical conditions, replace professional medical advice, or handle emergency health situations."
+    "disclaimer": "此技能基于可穿戴设备数据提供一般健康建议。它不诊断医学疾病，不替代专业医学建议，也不处理紧急健康情况。"
   }
 }

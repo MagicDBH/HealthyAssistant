@@ -4,43 +4,39 @@ from typing import Dict, Any
 
 
 def rewrite_query_locally(summary: Dict[str, Any], user_query: str, question_type: str) -> str:
-    """Rewrite a user's health question using rule-based templates grounded in their current state.
+    """使用基于规则的模板，根据用户当前状态改写其健康问题。
 
-    This function is the **local, zero-latency alternative** to sending the
-    query to an external LLM rewriter.  It produces a context-enriched question
-    that primes OpenClaw's language model with the most relevant health
-    dimensions *before* a single token is generated.
+    此函数是将查询发送到外部 LLM 改写器的**本地零延迟替代方案**。
+    它生成一个上下文丰富的问题，在生成第一个 token 之前，
+    用最相关的健康维度为 OpenClaw 的语言模型做好准备。
 
-    Each template:
+    每个模板：
 
-    * Acknowledges the specific health domain implied by *question_type*.
-    * Instructs OpenClaw to evaluate the user's suitability / readiness.
-    * Asks for concrete, actionable adjustments if needed.
-    * Appends the original question so the user's intent is preserved verbatim.
+    * 确认 *question_type* 所暗示的特定健康领域。
+    * 指示 OpenClaw 评估用户的适合程度/准备情况。
+    * 如有必要，要求提供具体可执行的调整建议。
+    * 附加原始问题以保留用户的意图原文。
 
-    Args:
-        summary: The merged summary dict (``user_id``, ``date``, ``daily``,
-            ``metrics``) produced by the skill pipeline.  Currently unused by
-            the rule-based templates but accepted for API parity with any
-            future LLM-based rewriter.
-        user_query: The original question text entered by the user.
-        question_type: One of the six category strings returned by
-            :func:`~scripts.prompt_builder.classify_question`:
-            ``"work_meeting"``, ``"exercise"``, ``"sleep"``,
-            ``"travel"``, ``"stress_recovery"``, or ``"general_health"``.
+    参数：
+        summary: 由技能管道生成的合并摘要字典（``user_id``、``date``、``daily``、
+            ``metrics``）。目前未被基于规则的模板使用，
+            但为与任何未来 LLM 改写器的 API 保持一致而接受该参数。
+        user_query: 用户输入的原始问题文本。
+        question_type: 由
+            :func:`~scripts.prompt_builder.classify_question` 返回的六个类别字符串之一：
+            ``"work_meeting"``、``"exercise"``、``"sleep"``、
+            ``"travel"``、``"stress_recovery"`` 或 ``"general_health"``。
 
-    Returns:
-        A rewritten question string in Chinese that embeds the relevant health
-        context and is ready to be passed to OpenClaw as the ``rewritten_query``
-        field of the context payload.
+    返回：
+        中文改写问题字符串，嵌入了相关健康上下文，
+        可作为上下文载荷的 ``rewritten_query`` 字段传递给 OpenClaw。
 
-    Trigger condition:
-        Called once per skill invocation immediately after
-        :func:`~scripts.prompt_builder.classify_question` returns, and before
-        :func:`~scripts.openclaw_payload.build_payload` assembles the final
-        payload.
+    触发条件：
+        在每次技能调用中，紧接
+        :func:`~scripts.prompt_builder.classify_question` 返回后调用一次，
+        并在 :func:`~scripts.openclaw_payload.build_payload` 组装最终载荷之前。
 
-    Example::
+    示例::
 
         rewrite_query_locally(summary, "我明天要开会，怎么调整？", "work_meeting")
         # → "结合我当前的睡眠、压力和恢复状态，明天我适合参加会议或处理高压工作吗？..."
