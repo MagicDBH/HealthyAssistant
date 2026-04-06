@@ -1,5 +1,7 @@
 # Skill: Sensor-in-the-Loop Personalized Health Assistant for OpenClaw
+--
 
+--
 ## 1. Skill 名称与目标
 
 **Skill 名称**：Sensor-in-the-Loop Personalized Health Assistant  
